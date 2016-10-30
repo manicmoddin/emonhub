@@ -57,7 +57,7 @@ Set
 
 Install the emon-pi variant of emonhub:
 
-    git clone https://github.com/openenergymonitor/emonhub.git && emonhub/install
+    git clone https://github.com/openenergymonitor/emonhub.git && sudo emonhub/install
     sudo service emonhub start
     
 The emonhub configuration guide can be found here:
@@ -66,7 +66,7 @@ The emonhub configuration guide can be found here:
 
 To view the emonhub log via terminal on the emonpi or emonbase:
 
-    tail -f /var/log/emonhub.log
+    tail -f /var/log/emonhub/emonhub.log
     
 
 

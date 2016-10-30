@@ -1,43 +1,134 @@
-#!/bin/sh
+#!/bin/bash
+
+
+##First check that the current user is root, either in a root shell or as sudo...
+
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
+
+### Clear the screen so that all prompts can be seen easier!
+clear
 
 echo "Emonhub installation script for emonPi"
 
 ### set git cloned location
-GIT_PATH=/home/pi/emonhub
+#GIT_PATH=/home/pi/emonhub
 
-if [ ! -d /home/pi ] ; then
-  {
-    echo "Directory /home/pi does not exist, this installation script is for raspberrypi installation"
-    exit
-  }
-fi
+### set path automajicially, this will install the the folder that software was downloaded to - makes it not pi specific...
+GIT_PATH="$(dirname "$(readlink -f "$0")")"
+DATA_PATH="$(dirname "$(readlink -f "$0")" | cut -d'/' -f 3)"
+
+#echo $DATA_PATH
+#echo $GIT_PATH
+
+
+#if [ ! -d /home/pi ] ; then
+#  {
+#    echo "Directory /home/pi does not exist, this installation script is for raspberrypi installation"
+#    exit
+#  }
+#fi
 
 
 ### set location to install emonhub.py etc
 INST_PATH=/usr/share/emonhub
 
+##check to see if the installation path currently exists
+if [ -d $INST_PATH ]
+then
+    echo "Found an existing installation of emonhub..."
+    read -p "Do you want to remove and reinstall? [y/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Aborting install"
+        exit 1
+
+    else
+        rm -r -f $INST_PATH
+    fi
+else
+    echo "No previous install found, continuing..."
+fi
+
 ### create linked directory for emonhub.py etc
-sudo rm -r -f $INST_PATH
-sudo ln -s $GIT_PATH/src $INST_PATH
+ln -s $GIT_PATH/src $INST_PATH
 
 ### link init script
-sudo rm -f /etc/init.d/emonhub
-sudo ln -s $GIT_PATH/service/emonhub /etc/init.d/emonhub
+rm -f /etc/init.d/emonhub
+ln -s $GIT_PATH/service/emonhub /etc/init.d/emonhub
+
+### Build the defaults file
+##############################################################################
+##                                                                          ##
+##  THERE IS NO NEED TO EDIT THIS BIT OF THE FILE                           ##
+##                                                                          ##
+##############################################################################
+
+#mv $GIT_PATH/conf/default/emonhub $GIT_PATH/conf/default/emonhub.old #This was only for testing, should be safe to remove
+
+
+echo "
+## emonHub settings
+
+# Edit this to configure the parameters used in
+# the /etc/init.d/emonhub script.
+
+# This file should be deployed to /etc/default/emonhub
+# unless you have edited the init.d file to give an
+# alternate SYSCONF_PATH
+
+# Specify the directory in which emonhub.py is found:
+EMONHUB_PATH=/usr/share/emonhub/
+
+# Specify the full config file path:
+EMONHUB_CONFIG=/home/$DATA_PATH/data/emonhub.conf
+
+# Specify the full log file path:
+EMONHUB_LOG=/var/log/emonhub/emonhub.log
+" > $GIT_PATH/conf/default/emonhub
+
+##############################################################################
+##                                                                          ##
+## END OFF THE DEFAULTS FILE                                                ##
+##                                                                          ##
+##############################################################################
 
 ### link default locations file
-sudo rm -f /etc/default/emonhub
-sudo ln -s $GIT_PATH/conf/default/emonhub /etc/default/emonhub
+rm -f /etc/default/emonhub
+ln -s $GIT_PATH/conf/default/emonhub /etc/default/emonhub
 
-### create folder and move settings file (unless it exists already)
-if [ ! -f /home/pi/data/emonhub.conf ] ; then
+### Check to see if the folder for the settings file exists
+if [ ! -d /home/$DATA_PATH/data ] ; then
   {
-    sudo mv $GIT_PATH/conf/emonpi.default.emonhub.conf /home/pi/data/emonhub.conf
+    mkdir /home/$DATA_PATH/data
+    echo "Data folder created at /home/$DATA_PATH/data/"
+  }
+else
+  {
+    echo "Data folder already exists, no need to re-create"
+  }
+
+fi
+
+### COPY settings file (unless it exists already)
+if [ ! -f /home/$DATA_PATH/data/emonhub.conf ] ; then
+  {
+  cp $GIT_PATH/conf/emonpi.default.emonhub.conf /home/$DATA_PATH/data/emonhub.conf
   }
 fi
 
 # launch at start-ip
-sudo update-rc.d emonhub defaults 99
+update-rc.d emonhub defaults 99
 
 
-### create "emonhub" user
-sudo useradd -M -r -G dialout,tty -c "emonHub user" emonhub
+#### create "emonhub" user
+useradd -M -r -G dialout,tty -c "emonHub user" emonhub
+
+### Finally give permissions required for everything in the data folder
+chown -R $DATA_PATH /home/$DATA_PATH/data/
+
+echo "DONE"
+exit 0
